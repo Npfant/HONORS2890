@@ -12,8 +12,8 @@ class Detector:
         # The image publisher is for debugging and figuring out
         # good color values to use for ball detection
 		self.impub = rospy.Publisher('/ball_detector/image', Image, queue_size=1)
-		self.locpub = rospy.Publisher('/ball_detector/ball_location', BallLocation,
-                        		queue_size=1)
+		#self.locpub = rospy.Publisher('/ball_detector/ball_location', BallLocation,
+                        	#	queue_size=1)
 		self.bridge = CvBridge()
 		self.bearing = -1
 		self.distance = -1
@@ -40,18 +40,18 @@ class Detector:
         #                    self.sum += i
         #                    self.num++
 		
-		for i in range (100, 540):
-			for j in range (0, 479):
+		for i in range (0, 639, 3):
+			for j in range (50, 450, 2):
 				if(image[j, i, 0] > 40 and image[j, i, 0] < 80):
 					if(image[j, i, 1] > 100 and image[j, i, 1] < 220):
 						if(image[j, i, 2] > 150 and image[j, i, 2] < 255):
 							self.sum += i
 							self.num += 1
-							image[j, i, 0] = 0
-							image[j, i, 1] = 0
+							image[j, i, 0] = 255
+							image[j, i, 1] = 255
 							image[j, i, 2] = 0
 			
-		if(self.sum > 0):
+		if(self.sum > 0 and self.num >= 50):
 			self.bearing = int(self.sum / self.num)
 			for i in range (0, 479):
 				image[i, self.bearing, 0] = 0
@@ -71,7 +71,11 @@ class Detector:
         # in self.distance. Decide what to do if range is NaN.
 		if(self.bearing >= 0):
  			self.distance = msg.ranges[int(-self.bearing)]
- 			print(self.distance)
+ 			if(self.distance != self.distance):
+ 				self.distance = -1
+ 				print("NaN")
+ 			if(self.distance > 0):
+ 				print(self.distance)
 		else:
 			self.distance = -1
 			print("Out of range")
@@ -79,10 +83,10 @@ class Detector:
 	def start(self):
 		rate = rospy.Rate(10)
 		while not rospy.is_shutdown():
-			location = BallLocation()
-			location.bearing = self.bearing
-			location.distance = self.distance
-			self.locpub.publish(location)
+			#location = BallLocation()
+			#location.bearing = self.bearing
+			#location.distance = self.distance
+			#self.locpub.publish(location)
 			rate.sleep()
 
 rospy.init_node('ball_detector')
