@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 import roslib
+roslib.load_manifest('robot')
 import rospy
 import cv2
 from sensor_msgs.msg import Image, LaserScan
+from robot.msg import BallLocation
 from cv_bridge import CvBridge, CvBridgeError
 
 class Detector:
@@ -12,8 +14,8 @@ class Detector:
         # The image publisher is for debugging and figuring out
         # good color values to use for ball detection
 		self.impub = rospy.Publisher('/ball_detector/image', Image, queue_size=1)
-		#self.locpub = rospy.Publisher('/ball_detector/ball_location', BallLocation,
-                        	#	queue_size=1)
+		self.locpub = rospy.Publisher('/ball_detector/ball_location', BallLocation,
+                        		queue_size=1)
 		self.bridge = CvBridge()
 		self.bearing = -1
 		self.distance = -1
@@ -32,15 +34,8 @@ class Detector:
         # bright yellow pixels in the image. Yellow = (0, 255, 255) 160 190 190
 		self.num = 0;
 		self.sum = 0;
-        #for(i = 300; i < 340; i++):
-        #    for(j = 0; j < 640; j++):
-        #        if(image[j, i, 0] > 140 && image[j, i, 0] < 180):
-        #            if(image[j, i, 1] > 170 && image[j, i, 1] < 210):
-        #                if(image[j, i, 2] > 170 && image[j, i, 2] < 210):
-        #                    self.sum += i
-        #                    self.num++
 		
-		for i in range (0, 639, 3):
+		for i in range (0, 639, 5):
 			for j in range (50, 450, 2):
 				if(image[j, i, 0] > 40 and image[j, i, 0] < 80):
 					if(image[j, i, 1] > 100 and image[j, i, 1] < 220):
@@ -51,7 +46,7 @@ class Detector:
 							image[j, i, 1] = 255
 							image[j, i, 2] = 0
 			
-		if(self.sum > 0 and self.num >= 50):
+		if(self.sum > 0 and self.num >= 10):
 			self.bearing = int(self.sum / self.num)
 			for i in range (0, 479):
 				image[i, self.bearing, 0] = 0
@@ -59,7 +54,6 @@ class Detector:
 				image[i, self.bearing, 2] = 0
 		else: 
 			self.bearing = -1
-		print(self.bearing)
         # Feel free to change the values in the image variable
         # in order to see what is going on
         # Here we publish the modified image; it can be
@@ -73,20 +67,17 @@ class Detector:
  			self.distance = msg.ranges[int(-self.bearing)]
  			if(self.distance != self.distance):
  				self.distance = -1
- 				print("NaN")
- 			if(self.distance > 0):
- 				print(self.distance)
+ 			
 		else:
 			self.distance = -1
-			print("Out of range")
     
 	def start(self):
 		rate = rospy.Rate(10)
 		while not rospy.is_shutdown():
-			#location = BallLocation()
-			#location.bearing = self.bearing
-			#location.distance = self.distance
-			#self.locpub.publish(location)
+			location = BallLocation()
+			location.bearing = self.bearing
+			location.distance = self.distance
+			self.locpub.publish(location)
 			rate.sleep()
 
 rospy.init_node('ball_detector')
