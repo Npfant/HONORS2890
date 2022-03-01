@@ -79,7 +79,7 @@ class Puppy:
 			self.pub.publish(twist)
 			rate.sleep()
 
-rospy.init_node('ball_detector')
-detector = Detector()
-detector.start()
+rospy.init_node('roboPuppy')
+puppy = Puppy()
+puppy.run()
 
