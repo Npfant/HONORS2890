@@ -46,8 +46,12 @@ class Dodgeball:
 		
 		self.bearing = -1
 		self.distance = -1
+		self.angle = -1
+		self.range = -1
 		self.bearingpid = PID(320, .01, 0, 0.01, 1)
-		self.distancepid = PID(1.5, -0.35, 0, 0.02, .25)
+		self.distancepid = PID(1.5, -0.35, 0, 0.02, 0.25)
+		self.rangepid = PID(0, -0.35, 0, 0.02, 0.25)
+		self.anglepid = PID(0, 0.01, 0, 0.01, 1)
 
 	def handle_pose(self, msg):
 		self.x = msg.pose.pose.position.x
@@ -85,9 +89,9 @@ class Dodgeball:
 				twist.angular.z = 0
 				if(self.bearing < 0 or self.distance < 0):
 					self.state = 'search' 
-				if(self.bearing > 300 and self.bearing < 340 and self.distance > 						1.4 and self.distance < 1.6):
+				if(self.bearing > 300 and self.bearing < 340 and self.distance > 1.4 and self.distance < 1.6):
+					get_vector(self.x, self.y, 1.5, 1.5)
 					self.state = 'navToInt'
-					self.time = rospy.get_time()
 				if(self.bearing > 0 and self.distance > 0):
 					twist.angular.z = self.bearingpid.get_output(self.bearing)
 					twist.linear.x = self.distancepid.get_output(self.distance)
@@ -99,8 +103,23 @@ class Dodgeball:
 					self.state = 'search'
 
 			if self.state == 'navToInt':
+				twist.linear.x = 0
+				twist.angular.z = 0
+				self.angle, self.range = get_vector(self.x, self.y, 1.5 - self.x, 1.5 - self.y)
+				twist.angular.z = self.anglepid.get_output(self.theta - self.angle)
+				twist.linear.x = self.rangepid.get_output(self.range)
+				if(self.angle == 0 and self.range == 0):
+					self.state = 'navToKick'
 				
 			if self.state == 'navToKick':
+				twist.linear.x = 0
+				twist.angular.z = 0
+				self.angle, self.range = get_vector(self.x, self.y, -1.5 + self.x, 1.5 - self.y)
+				twist.angular.z = self.anglepid.get_output(self.angle)
+				twist.linear.x = self.rangepid.get_output(sef.range)
+				if(self.angle == 0 and self.range == 0):
+					self.state = 'lineup'
+
 				
 			if self.state == 'lineup':
 				twist.linear.x = 0
@@ -115,8 +134,11 @@ class Dodgeball:
 						
 			#print(self.state)
 			#print(self.bearing)
-			print(self.distance)
-			
+			#print(self.distance)
+			print(self.angle)
+			print(self.range)			
+
+
 			self.pub.publish(twist)
 			rate.sleep()
 
