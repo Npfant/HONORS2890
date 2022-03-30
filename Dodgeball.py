@@ -4,6 +4,7 @@ import roslib
 roslib.load_manifest('robot')
 import rospy
 import cv2
+import math
 from sensor_msgs.msg import Image, LaserScan
 from robot.msg import BallLocation
 from cv_bridge import CvBridge, CvBridgeError
@@ -30,7 +31,7 @@ class PID:
         output = min(output, self.max)
         self.previous_error = error
         #print(error)
-        print(output)
+        #print(output)
         return output
 
 class Dodgeball:
@@ -39,15 +40,18 @@ class Dodgeball:
 		self.pub = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size = 10)
 		#rospy.Subscriber('/mobile_base/events/bumper', BumperEvent, self.bumped)
 		rospy.Subscriber('/ball_detector/ball_location', BallLocation, self.measure)
-		rospy.Subscriber(’/odom’, Odometry, self.handle_pose)
+		rospy.Subscriber('/odom', Odometry, self.handle_pose)
 		
 		self.state = 'search'
 		self.time = rospy.get_time()
 		
 		self.bearing = -1
 		self.distance = -1
+		self.x = -1
+		self.y = -1
 		self.angle = -1
 		self.range = -1
+		self.theta = 0
 		self.bearingpid = PID(320, .01, 0, 0.01, 1)
 		self.distancepid = PID(1.5, -0.35, 0, 0.02, 0.25)
 		self.rangepid = PID(0, -0.35, 0, 0.02, 0.25)
@@ -60,7 +64,7 @@ class Dodgeball:
 			msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
 		(_, _, self.theta) = euler_from_quaternion(q)
 		
-	def get_vector(from_x, from_y, to_x, to_y):
+	def get_vector(self, from_x, from_y, to_x, to_y):
 		bearing = math.atan2(to_y - from_y, to_x - from_x)
 		distance = math.sqrt((from_x - to_x)**2 + (from_y - to_y)**2)
 		return (bearing, distance)
@@ -90,11 +94,14 @@ class Dodgeball:
 				if(self.bearing < 0 or self.distance < 0):
 					self.state = 'search' 
 				if(self.bearing > 300 and self.bearing < 340 and self.distance > 1.4 and self.distance < 1.6):
-					get_vector(self.x, self.y, 1.5, 1.5)
+					self.xint = self.x + 2.12 * math.cos(self.theta)
+					self.yint = self.y + 2.12 * math.sin(self.theta)
+#Need to figure out correct vector calls 
 					self.state = 'navToInt'
 				if(self.bearing > 0 and self.distance > 0):
 					twist.angular.z = self.bearingpid.get_output(self.bearing)
 					twist.linear.x = self.distancepid.get_output(self.distance)
+#Need to verify correct pid calls
 				
 			if self.state == 'kick':
 				twist.linear.x = 1
@@ -105,8 +112,8 @@ class Dodgeball:
 			if self.state == 'navToInt':
 				twist.linear.x = 0
 				twist.angular.z = 0
-				self.angle, self.range = get_vector(self.x, self.y, 1.5 - self.x, 1.5 - self.y)
-				twist.angular.z = self.anglepid.get_output(self.theta - self.angle)
+				self.angle, self.range = self.get_vector(self.x, self.y, self.xint, self.yint)
+				twist.angular.z = self.anglepid.get_output(self.theta - 						self.angle)
 				twist.linear.x = self.rangepid.get_output(self.range)
 				if(self.angle == 0 and self.range == 0):
 					self.state = 'navToKick'
@@ -114,7 +121,7 @@ class Dodgeball:
 			if self.state == 'navToKick':
 				twist.linear.x = 0
 				twist.angular.z = 0
-				self.angle, self.range = get_vector(self.x, self.y, -1.5 + self.x, 1.5 - self.y)
+				self.angle, self.range = self.get_vector(self.x, self.y, -1.5 + self.x, 1.5 - self.y)
 				twist.angular.z = self.anglepid.get_output(self.angle)
 				twist.linear.x = self.rangepid.get_output(sef.range)
 				if(self.angle == 0 and self.range == 0):
@@ -132,11 +139,11 @@ class Dodgeball:
 				if(self.bearing > 0):
 					twist.angular.z = self.bearingpid.get_output(self.bearing)
 						
-			#print(self.state)
+			print(self.state)
 			#print(self.bearing)
 			#print(self.distance)
-			print(self.angle)
-			print(self.range)			
+			print(self.x, self.y, self.theta)
+			print(self.angle, self.range)			
 
 
 			self.pub.publish(twist)
