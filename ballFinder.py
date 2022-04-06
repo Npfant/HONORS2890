@@ -4,6 +4,7 @@ import roslib
 roslib.load_manifest('robot')
 import rospy
 import cv2
+import numpy as np
 from sensor_msgs.msg import Image, LaserScan
 from robot.msg import BallLocation
 from cv_bridge import CvBridge, CvBridgeError
@@ -25,7 +26,8 @@ class Detector:
 
 	def handle_image(self, msg):
 		try:
-			image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+			bgr = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+			image = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
 		except (CvBridgeError, e):
 			print ("e")
 		(rows, columns, channels) = image.shape
@@ -35,30 +37,34 @@ class Detector:
 		self.num = 0;
 		self.sum = 0;
 		
-		for i in range (0, 639, 5):
-			for j in range (50, 450, 2):
-				if(image[j, i, 0] > 40 and image[j, i, 0] < 80):
-					if(image[j, i, 1] > 100 and image[j, i, 1] < 220):
-						if(image[j, i, 2] > 150 and image[j, i, 2] < 255):
+		for i in range (0, 639, 10):
+			for j in range (50, 450, 3):
+				if(image[j, i, 0] > 50 and image[j, i, 0] < 70):#blue/hue
+					if(image[j, i, 1] > 50 and image[j, i, 1] < 70):#green/saturation
+						if(image[j, i, 2] > 80 and image[j, i, 2] <100):#red/value
 							self.sum += i
 							self.num += 1
-							image[j, i, 0] = 255
-							image[j, i, 1] = 255
+							image[j, i, 0] = 0
+							image[j, i, 1] = 0
 							image[j, i, 2] = 0
 			
 		if(self.sum > 0 and self.num >= 10):
 			self.bearing = int(self.sum / self.num)
-			for i in range (0, 479):
-				image[i, self.bearing, 0] = 0
-				image[i, self.bearing, 1] = 255
-				image[i, self.bearing, 2] = 0
+			image[:, self.bearing, 0] = 0
+			image[:, self.bearing, 1] = 255
+			image[:, self.bearing, 2] = 0
+			image[:, 320, 0] = 0
+			image[:, 320, 1] = 0
+			image[:, 320, 2] = 0
 		else: 
 			self.bearing = -1
         # Feel free to change the values in the image variable
         # in order to see what is going on
         # Here we publish the modified image; it can be
         # examined by running image_view
-		self.impub.publish(self.bridge.cv2_to_imgmsg(image, "bgr8"))
+		image2 = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
+		self.impub.publish(self.bridge.cv2_to_imgmsg(image2, "bgr8"))
+		cv2.destroyAllWindows()
 
 	def handle_scan(self, msg):
         # If the bearing is valid, store the corresponding range
